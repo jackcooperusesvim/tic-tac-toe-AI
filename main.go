@@ -385,3 +385,14 @@ func mn(){
 		}
     }
 }
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+func search_tree(b board){
+	board_channel := make(chan board,30)
+
+	board_channel <- b
+
+
+	close(board_channel)
+}
