@@ -109,7 +109,7 @@ func int_move_input(retry func(board), b board) int {
 	fmt.Printf("Num : ")
 	fmt.Scanln(&in)
 	intIn, err := strconv.Atoi(in)
-	if err != nil || intIn>9 || intIn<0{
+	if err != nil || intIn>9 || intIn<1{
 		retry(b)
 		intIn = int_move_input(retry, b)
 	}
