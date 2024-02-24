@@ -118,8 +118,7 @@ func int_move_input(retry func(board), b board) int {
 }
 	
 
-func generate_turn_from_num(retry func(board), b board) turn{
-	num := int_move_input(retry, b)
+func generate_turn_from_int(num int) turn{
 	fmt.Printf("\n")
 
 
@@ -368,7 +367,7 @@ func mn(){
 	var err error = nil
     for true{
 		reset_screen(brd)
-		tn := generate_turn_from_num(retry_screen,brd)
+		tn := generate_turn_from_int(int_move_input(retry_screen,brd))
 
 		brd, err = brd.apply_turn(tn)
 		if err != nil {
@@ -388,11 +387,140 @@ func mn(){
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-func search_tree(b board){
-	board_channel := make(chan board,30)
-
-	board_channel <- b
+func sear
 
 
-	close(board_channel)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+func search_tree_multi(b board, outchan chan int, channel_close_notification chan struct{}, min_goal bool){
+
+	var err error
+	b, err = b.update_win_state()
+	if err != nil {
+		fmt.Printf("ERROR: %v",err)
+	}
+
+	if b.winner != blank {
+		outchan <- b.winner
+	}
+
+	legal_moves := make([]turn,0,9)
+	subroutine_count := 0
+	var tn turn
+
+	for i:=0 ; i<9; i++ {
+		tn = generate_turn_from_int(i)
+		if b.is_legal(tn){
+			subroutine_count++
+			legal_moves = append(legal_moves,tn)
+		}
+	}
+
+	inchan := make(chan int)
+	//TODO: START GOROUTINES HERE
+
+	var closest_to_goal int
+	if min_goal {
+		closest_to_goal = 1
+	} else {
+		closest_to_goal = -1
+	}
+	var rec_value int
+	for num_recieved := 0 ; num_recieved < subroutine_count ; num_recieved++ {
+
+		if min_goal{
+			rec_value = <- inchan
+			if rec_value < closest_to_goal{
+			}
+
+				//TODO: RETURN THE -1 IF THE RETURN CHANNEL IS OPEN
+			} else {
+				rec_value := <- 
+				
+			}
+
+
+
+		} else {
+			//TODO: RETURN THE -1 IF THE RETURN CHANNEL IS OPEN
+		}
+	}
+	//TODO: CLOSE CHANNEL AND ACCOUNT FOR POSSIBLE CLOSURE OF SUPERIOR CHANNEL 
+	close(inchan)
+}
+func dependant_close(inchan chan int, outchan chan_int){
+	_, ok := <- outchan
+	if !ok{
+		close(inchan)
+		return
+	}
 }
