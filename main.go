@@ -118,7 +118,8 @@ func int_move_input(retry func(board), b board) int {
 }
 	
 
-func generate_turn_from_int(num int) turn{
+func generate_turn_from_num(retry func(board), b board) turn{
+	num := int_move_input(retry, b)
 	fmt.Printf("\n")
 
 
@@ -366,8 +367,9 @@ func mn(){
 	brd := initializeBrd()
 	var err error = nil
     for true{
+		// human turn
 		reset_screen(brd)
-		tn := generate_turn_from_int(int_move_input(retry_screen,brd))
+		tn := generate_turn_from_num(retry_screen,brd)
 
 		brd, err = brd.apply_turn(tn)
 		if err != nil {
@@ -378,149 +380,178 @@ func mn(){
 		if err != nil {
 			fmt.Println("ERROR: ",err)
 		}
+		//end game if won
+		if brd.winner != blank {
+			brd.print_board()
+			return 
+		}
+		//computer turn
+		w_turn, err := brd.choose_move()
+		if err != nil {
+			fmt.Println("ERROR: ",err)
+		}
+
+		brd, err = brd.apply_turn(w_turn)
+		if err != nil {
+			fmt.Println("ERROR: ",err)
+		}
+
+		brd, err = brd.update_win_state()
+		if err != nil {
+			fmt.Println("ERROR: ",err)
+		}
+		//visual
 		if brd.winner != blank {
 			brd.print_board()
 			return 
 		}
     }
 }
+
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-func sear
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-func search_tree_multi(b board, outchan chan int, channel_close_notification chan struct{}, min_goal bool){
-
-	var err error
+func (b board) legal_moves() (available_turns []turn) {
+	var working_turn turn
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 3; col++ {
+			working_turn.y = row
+			working_turn.x = col 
+			if b.is_legal(working_turn) {
+				available_turns = append(available_turns, working_turn)
+			}
+		}
+	}
+	return available_turns
+}
+func (b board) choose_move() (move turn, err error){
 	b, err = b.update_win_state()
+
 	if err != nil {
-		fmt.Printf("ERROR: %v",err)
+		return turn{}, err
 	}
 
 	if b.winner != blank {
-		outchan <- b.winner
+		return turn{}, errors.New("ERROR: Game already won")
 	}
 
-	legal_moves := make([]turn,0,9)
-	subroutine_count := 0
-	var tn turn
-
-	for i:=0 ; i<9; i++ {
-		tn = generate_turn_from_int(i)
-		if b.is_legal(tn){
-			subroutine_count++
-			legal_moves = append(legal_moves,tn)
+	moves := b.legal_moves()
+	var util []int
+	var w_util int
+	var w_brd board
+	for _, move := range moves {
+		w_brd, err = b.apply_turn(move)
+		w_util, err = w_brd.utility_assign_rec()
+		if err != nil {
+			return turn{}, err
 		}
+		util = append(util, w_util)
 	}
-
-	inchan := make(chan int)
-	//TODO: START GOROUTINES HERE
-
-	var closest_to_goal int
-	if min_goal {
-		closest_to_goal = 1
-	} else {
-		closest_to_goal = -1
-	}
-	var rec_value int
-	for num_recieved := 0 ; num_recieved < subroutine_count ; num_recieved++ {
-
-		if min_goal{
-			rec_value = <- inchan
-			if rec_value < closest_to_goal{
+	var move_index int 
+	closest := util[0]
+	if b.turn == x {
+		for i, val := range util {
+			if val == x{
+				return moves[i], nil
 			}
-
-				//TODO: RETURN THE -1 IF THE RETURN CHANNEL IS OPEN
-			} else {
-				rec_value := <- 
-				
+			if closest < val {
+				closest = val
+				move_index = i
 			}
-
-
-
-		} else {
-			//TODO: RETURN THE -1 IF THE RETURN CHANNEL IS OPEN
 		}
+	} else if b.turn == o {
+		closest = util[0]
+		for i, val := range util {
+			if val == o{
+				return moves[i], nil
+			}
+			if closest > val {
+				closest = val
+				move_index = i
+			}
+		}
+		
 	}
-	//TODO: CLOSE CHANNEL AND ACCOUNT FOR POSSIBLE CLOSURE OF SUPERIOR CHANNEL 
-	close(inchan)
-}
-func dependant_close(inchan chan int, outchan chan_int){
-	_, ok := <- outchan
-	if !ok{
-		close(inchan)
-		return
+	return moves[move_index], nil
+
+} 
+func (b board) utility_assign_rec() (out int, err error){
+	b, err = b.update_win_state()
+
+	if err != nil {
+		return blank, err
 	}
+
+	if b.winner != blank {
+		return b.winner, nil
+	}
+
+	moves := b.legal_moves()
+	var util []int
+	var w_util int
+	var w_brd board
+	for _, move := range moves {
+		w_brd, err = b.apply_turn(move)
+		w_util, err = w_brd.utility_assign_rec()
+		if err != nil {
+			return blank, err
+		}
+		util = append(util, w_util)
+	}
+	closest := util[0]
+	if b.turn == x {
+		closest = o
+		closest = util[0]
+		for _, val := range util {
+			if val == x{
+				return x, nil
+			}
+			if closest < val {
+				closest = val
+			}
+		}
+	} else if b.turn == o {
+		closest = util[0]
+		closest = x
+		for _, val := range util {
+			if val == o{
+				return o, nil
+			}
+			if closest > val {
+				closest = val
+			}
+		}
+		
+	}
+	return closest, nil
+
 }
+//
+// func (b board) utility_assign_rec_multi_master(stop_util int) (util int){
+// 	x_win_chan := make(chan struct{})
+// 	o_win_chan := make(chan struct{})
+// 	draw_chan := make(chan struct{})
+// 	sub_threads_count := 9
+// 	for _, v := range sub_threads_count {
+// 		
+// 	}
+// 	results_recieved :=0
+// 	for {
+// 		select {
+// 			case <- x_win_chan:
+// 				if stop_util == x {
+// 					return x
+// 				} 
+// 				results_recieved++
+// 			case <- o_win_chan:
+// 				if stop_util == o {
+// 					return x
+// 				} 
+// 				results_recieved++
+// 			case <- draw_chan:
+// 				results_recieved++
+// 		}
+// 	}
+// }
