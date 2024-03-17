@@ -1,12 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/inancgumus/screen"
 	"strconv"
+	// "sync"
 )
-const TEST = false 
+
+const TEST = false
 
 const x = 1
 const o = -1
@@ -14,81 +16,87 @@ const blank = 0
 const bad_piece = 3
 
 type board struct {
-	brd [3][3]int
-	turn int
-	winner int
+	brd         [3][3]int
+	turn        int
+	winner      int
+	is_terminal bool
 }
 
 type vboard struct {
-	brd [3][3]string
-	turn string
+	brd    [3][3]string
+	turn   string
 	winner string
 }
 
 var TestCases []board = []board{}
 
 func int_to_piece(in int) (string, error) {
-	if in == x{
+	if in == x {
 		return "x", nil
 	}
-	if in == o{
+	if in == o {
 		return "o", nil
 	}
-	if in == blank{
+	if in == blank {
 		return " ", nil
 	}
 	return " ", errors.New("Invalid piece")
 }
 
 func (b board) to_vboard() (vb vboard, err error) {
-	for i := 0 ; i<3 ; i++{
-		for j := 0 ; j<3 ; j++{
+	for i := 0; i < 3; i++ {
+		for j := 0; j < 3; j++ {
 			vb.brd[i][j], err = int_to_piece(b.brd[i][j])
 			if err != nil {
-				return vb , err
+				return vb, err
 			}
 		}
 	}
+	if b.is_terminal && b.winner == blank {
+		vb.winner = "Tie Game"
+	}
 	return vb, nil
 }
+
 type turn struct {
-	x int
-	y int
+	x    int
+	y    int
+	null bool
 }
 
 type winSum struct {
-	row_wins [3]bool
-	col_wins [3]bool
+	row_wins  [3]bool
+	col_wins  [3]bool
 	diag_wins [2]bool
-
 }
 
 func initializeWinSum() (ws winSum) {
-	ws.row_wins = [3]bool{true,true,true}
-	ws.col_wins = [3]bool{true,true,true}
-	ws.diag_wins = [2]bool{true,true}
+	ws.row_wins = [3]bool{true, true, true}
+	ws.col_wins = [3]bool{true, true, true}
+	ws.diag_wins = [2]bool{true, true}
 	return ws
 
 }
 
 func slc_or(input []bool) bool {
-	for _,e := range input {
-		if e{
+	for _, e := range input {
+		if e {
 			return true
 		}
 	}
 	return false
 }
 
-func (ws winSum) compile() bool{
+func (ws winSum) compile() bool {
 	// fmt.Printf("	dbg: cols: %v,%v,%v\n",ws.row_wins[0],ws.row_wins[1],ws.row_wins[2])
-	return (slc_or(ws.row_wins[:]) || slc_or(ws.col_wins[:]) ||slc_or(ws.diag_wins[:]))
+	return (slc_or(ws.row_wins[:]) || slc_or(ws.col_wins[:]) || slc_or(ws.diag_wins[:]))
 }
 
-func initializeBrd() board{
+func initializeBrd() board {
 	var out = board{}
 	out.turn = x
 	out.winner = 0
+	out.is_terminal = false
 
 	return out
 }
@@ -96,8 +104,8 @@ func initializeBrd() board{
 func persistent_input(options ...string) int {
 	var in string
 	fmt.Scanln(&in)
-	for i := 0 ; i<len(options); i++{
-		if options[i] == in{
+	for i := 0; i < len(options); i++ {
+		if options[i] == in {
 			return i
 		}
 	}
@@ -109,61 +117,56 @@ func int_move_input(retry func(board), b board) int {
 	fmt.Printf("Num : ")
 	fmt.Scanln(&in)
 	intIn, err := strconv.Atoi(in)
-	if err != nil || intIn>9 || intIn<1{
+	if err != nil || intIn > 9 || intIn < 1 {
 		retry(b)
 		intIn = int_move_input(retry, b)
 	}
 
 	return intIn
 }
-	
 
-func generate_turn_from_num(retry func(board), b board) turn{
+func generate_turn_from_num(retry func(board), b board) turn {
 	num := int_move_input(retry, b)
 	fmt.Printf("\n")
 
-
 	tn := turn{}
-	num = 9-num
-	tn.x = 2-(num%3)
-	tn.y = (num-(num%3))/3
+	num = 9 - num
+	tn.x = 2 - (num % 3)
+	tn.y = (num - (num % 3)) / 3
 
 	return tn
 
 }
 
-
 func generate_turn() turn {
 	out := turn{}
-	x_word_options := [3]string{"l","m","r"}
-	y_word_options := [3]string{"t","m","b"}
+	x_word_options := [3]string{"l", "m", "r"}
+	y_word_options := [3]string{"t", "m", "b"}
 
 	fmt.Println("Enter the x turn (l,m,r):")
 	out.x = persistent_input(x_word_options[:]...)
 	fmt.Println("Enter the y turn (b,m,t):")
 	out.y = persistent_input(y_word_options[:]...)
 
-
 	return out
 }
 
 func slc_sum(in []int) (sum int) {
-	for _,e := range in {
+	for _, e := range in {
 		sum += e
 	}
 	return
 }
 
+func (b board) update_win_state() (board, error) {
+	x_winSum := initializeWinSum()
+	o_winSum := initializeWinSum()
 
-func (b board) update_win_state() (board, error){
-	x_winSum := initializeWinSum() 
-	o_winSum := initializeWinSum() 
-
-	for col := 0 ; col<3 ; col++{
-		for row := 0 ; row<3 ; row++{
+	for col := 0; col < 3; col++ {
+		for row := 0; row < 3; row++ {
 			// fmt.Printf("dbg: val: %v col:%v row:%v \n",b.brd[row][col],col,row)
 			//Check Linear solutions
-		 	if b.brd[row][col] == blank{
+			if b.brd[row][col] == blank {
 				// fmt.Printf("dbg: blank\n")
 				x_winSum.row_wins[row] = false
 				x_winSum.col_wins[col] = false
@@ -171,7 +174,7 @@ func (b board) update_win_state() (board, error){
 				o_winSum.row_wins[row] = false
 				o_winSum.col_wins[col] = false
 
-			} else if b.brd[row][col] == x{
+			} else if b.brd[row][col] == x {
 				// fmt.Printf("dbg: x\n")
 				o_winSum.row_wins[row] = false
 				o_winSum.col_wins[col] = false
@@ -184,11 +187,11 @@ func (b board) update_win_state() (board, error){
 
 			//Check Diagonals
 			if 2-row == col {
-				if b.brd[row][col] == blank{
+				if b.brd[row][col] == blank {
 					x_winSum.diag_wins[0] = false
 					o_winSum.diag_wins[0] = false
 
-				} else if b.brd[row][col] == x{
+				} else if b.brd[row][col] == x {
 					o_winSum.diag_wins[0] = false
 
 				} else {
@@ -197,11 +200,11 @@ func (b board) update_win_state() (board, error){
 			}
 
 			if row == col {
-				if b.brd[row][col] == blank{
+				if b.brd[row][col] == blank {
 					x_winSum.diag_wins[1] = false
 					o_winSum.diag_wins[1] = false
 
-				} else if b.brd[row][col] == x{
+				} else if b.brd[row][col] == x {
 					o_winSum.diag_wins[1] = false
 
 				} else {
@@ -212,60 +215,72 @@ func (b board) update_win_state() (board, error){
 	}
 	x_win := x_winSum.compile()
 	o_win := o_winSum.compile()
-	if x_win && o_win{
+	b.is_terminal = false
+	if x_win && o_win {
 		b.winner = bad_piece
+		b.is_terminal = true
 		return b, errors.New("Both players have won")
 	}
 	if x_win {
 		b.winner = x
+		b.is_terminal = true
 		return b, nil
 	}
 	if o_win {
 		b.winner = o
+		b.is_terminal = true
 		return b, nil
+	}
+	if len(b.legal_moves()) == 0 {
+		b.is_terminal = true
 	}
 	b.winner = blank
 	return b, nil
 }
 
-func (b board) is_legal(t turn) bool{
-	if b.brd[t.y][t.x] == blank{
+func (b board) is_legal(t turn) bool {
+	if b.brd[t.y][t.x] == blank {
 		return true
 	}
 	return false
 }
 
-func (b board) print_board(){
+func (b board) print_board() {
 	vb, err := b.to_vboard()
-	if err != nil{
-		println("ERROR: ",err)
+	if err != nil {
+		println("ERROR: ", err)
 		return
 	}
 	fmt.Println("    |   |    ")
-	for i :=0; i<3; i++ {
-		fmt.Println(" ",vb.brd[i][0],"|",vb.brd[i][1],"|",vb.brd[i][2]," ")
-		if i==2 {
+	for i := 0; i < 3; i++ {
+		fmt.Println(" ", vb.brd[i][0], "|", vb.brd[i][1], "|", vb.brd[i][2], " ")
+		if i == 2 {
 			fmt.Println("    |   |    ")
 		} else {
 			fmt.Println("----+---+----")
 		}
 	}
 	fmt.Println("~~~~~~~~~~~~")
-	if b.winner == x{
-	fmt.Println("x has won")
-	} else if b.winner == o{
-	fmt.Println("o has won")
+	if b.winner == x {
+		fmt.Println("x has won")
+	} else if b.winner == o {
+		fmt.Println("o has won")
+	} else if b.is_terminal {
+		fmt.Println("Tie game")
 	} else {
-	fmt.Println("no one has won")
+		fmt.Println("no one has won")
 	}
 }
 
-func (b board) apply_turn(t turn) (board, error){
-	if !b.is_legal(t){
+func (b board) apply_turn(t turn) (board, error) {
+	if !b.is_legal(t) {
 		return b, errors.New("Non-Legal move")
 	}
-	if b.winner != blank{
-		return b, errors.New("Game already won")
+	if b.is_terminal {
+		return b, errors.New("Game is over")
+	}
+	if b.winner != blank {
+		return b, errors.New("Game already won (also, terminal state was not updated)")
 	}
 
 	b.brd[t.y][t.x] = b.turn
@@ -278,35 +293,39 @@ func (b board) apply_turn(t turn) (board, error){
 
 	return b, nil
 }
-func main(){
-	if TEST{test()} else {mn()}
+func main() {
+	if TEST {
+		test()
+	} else {
+		mn()
+	}
 }
 
-func test(){
+func test() {
 	const turnsPerTest = 5
 	const numOfTests = 4
 	turns := [numOfTests][turnsPerTest]turn{
 		//checks vertical x
-		{turn{x:0,y:0},turn{x:1,y:1},turn{x:0,y:1},turn{x:2,y:2},turn{x:0,y:2}},
-		//checks horizontal x 
-		{turn{x:0,y:0},turn{x:1,y:1},turn{x:1,y:0},turn{x:2,y:2},turn{x:2,y:0}},
-		//checks diag 1 x 
-		{turn{x:0,y:0},turn{x:0,y:1},turn{x:1,y:1},turn{x:0,y:2},turn{x:2,y:2}},
+		{turn{x: 0, y: 0}, turn{x: 1, y: 1}, turn{x: 0, y: 1}, turn{x: 2, y: 2}, turn{x: 0, y: 2}},
+		//checks horizontal x
+		{turn{x: 0, y: 0}, turn{x: 1, y: 1}, turn{x: 1, y: 0}, turn{x: 2, y: 2}, turn{x: 2, y: 0}},
+		//checks diag 1 x
+		{turn{x: 0, y: 0}, turn{x: 0, y: 1}, turn{x: 1, y: 1}, turn{x: 0, y: 2}, turn{x: 2, y: 2}},
 		//checks diag 2 x
-		{turn{x:0,y:2},turn{x:0,y:1},turn{x:1,y:1},turn{x:2,y:1},turn{x:2,y:0}}}
-	
+		{turn{x: 0, y: 2}, turn{x: 0, y: 1}, turn{x: 1, y: 1}, turn{x: 2, y: 1}, turn{x: 2, y: 0}}}
+
 	//each test will be done with both x and o
 
 	numFailed := 0
 	numPassed := 0
 	var testBrd board = initializeBrd()
 	passed := true
-	for i, test := range turns{
-		testBrd = initializeBrd()	
+	for i, test := range turns {
+		testBrd = initializeBrd()
 		passed = true
 		var err error = nil
 
-		fmt.Printf("TEST #%v\n",(i+1))
+		fmt.Printf("TEST #%v\n", (i + 1))
 
 		for _, turn := range test {
 
@@ -314,18 +333,17 @@ func test(){
 			testBrd, err = testBrd.apply_turn(turn)
 			if err != nil {
 				fmt.Println("		FAIL")
-				fmt.Printf("			%v \n",err)
+				fmt.Printf("			%v \n", err)
 			} else {
 				fmt.Println("		PASS")
 			}
-
 
 			fmt.Println("	UPDATING WIN STATE")
 			testBrd, err = testBrd.update_win_state()
 			if err != nil {
 				passed = false
 				fmt.Println("		FAIL")
-				fmt.Printf("			%v \n",err)
+				fmt.Printf("			%v \n", err)
 			} else {
 				fmt.Println("		PASS")
 			}
@@ -338,10 +356,14 @@ func test(){
 		} else {
 			passed = false
 			fmt.Println("		FAIL")
-			fmt.Printf("			Expected: %v \n",x)
-			fmt.Printf("			Recieved: %v \n",testBrd.winner)
+			fmt.Printf("			Expected: %v \n", x)
+			fmt.Printf("			Recieved: %v \n", testBrd.winner)
 		}
-		if passed {numPassed++} else {numFailed++}
+		if passed {
+			numPassed++
+		} else {
+			numFailed++
+		}
 		testBrd = initializeBrd()
 
 	}
@@ -351,64 +373,81 @@ func test(){
 	fmt.Printf("	FAILED: %v", numFailed)
 }
 
-func retry_screen(board board){
+func retry_screen(board board) {
 	screen.Clear()
 	screen.MoveTopLeft()
 	board.print_board()
 	fmt.Printf("Not a valid input (0-9)\n")
-}	
-func reset_screen(board board){
+}
+func reset_screen(board board) {
 	screen.Clear()
 	screen.MoveTopLeft()
 	board.print_board()
 }
 
-func mn(){
-	brd := initializeBrd()
-	var err error = nil
-    for true{
-		// human turn
-		reset_screen(brd)
-		tn := generate_turn_from_num(retry_screen,brd)
-
-		brd, err = brd.apply_turn(tn)
-		if err != nil {
-			fmt.Println("ERROR: ",err)
-		}
-
-		brd, err = brd.update_win_state()
-		if err != nil {
-			fmt.Println("ERROR: ",err)
-		}
-		//end game if won
-		if brd.winner != blank {
-			brd.print_board()
-			return 
-		}
-		//computer turn
-		w_turn, err := brd.choose_move()
-		if err != nil {
-			fmt.Println("ERROR: ",err)
-		}
-
-		brd, err = brd.apply_turn(w_turn)
-		if err != nil {
-			fmt.Println("ERROR: ",err)
-		}
-
-		brd, err = brd.update_win_state()
-		if err != nil {
-			fmt.Println("ERROR: ",err)
-		}
-		//visual
-		if brd.winner != blank {
-			brd.print_board()
-			return 
-		}
-    }
+func first_or_second() (first bool) {
+	fmt.Println("Would you like to go first or second? (1/2)(f/s)(first/second)")
+	if persistent_input("first", "second", "f", "s", "1", "2")%2 == 0 {
+		first = true
+	}
+	return
 }
+func (brd board) human_cycle() board {
+	reset_screen(brd)
+	tn := generate_turn_from_num(retry_screen, brd)
 
+	var err error
+	brd, err = brd.apply_turn(tn)
+	if err != nil {
+		fmt.Println("ERROR: ", err)
+	}
 
+	brd, err = brd.update_win_state()
+	if err != nil {
+		fmt.Println("ERROR: ", err)
+	}
+	return brd
+}
+func (brd board) minimax_cycle() board {
+	w_turn, err := brd.choose_move()
+	if err != nil {
+		fmt.Println("ERROR: ", err)
+	}
+
+	brd, err = brd.apply_turn(w_turn)
+	if err != nil {
+		fmt.Println("ERROR: ", err)
+	}
+
+	brd, err = brd.update_win_state()
+	if err != nil {
+		fmt.Println("ERROR: ", err)
+	}
+	return brd
+}
+func mn() {
+	brd := initializeBrd()
+	if !first_or_second() {
+		brd = brd.minimax_cycle()
+	}
+	for true {
+		brd = brd.human_cycle()
+
+		//end game if ended
+		if brd.is_terminal {
+			brd.print_board()
+			return
+		}
+		brd = brd.minimax_cycle()
+
+		//end game if ended
+		if brd.is_terminal {
+			brd.print_board()
+			return
+		}
+	}
+
+}
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -418,7 +457,7 @@ func (b board) legal_moves() (available_turns []turn) {
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 3; col++ {
 			working_turn.y = row
-			working_turn.x = col 
+			working_turn.x = col
 			if b.is_legal(working_turn) {
 				available_turns = append(available_turns, working_turn)
 			}
@@ -426,7 +465,7 @@ func (b board) legal_moves() (available_turns []turn) {
 	}
 	return available_turns
 }
-func (b board) choose_move() (move turn, err error){
+func (b board) choose_move() (move turn, err error) {
 	b, err = b.update_win_state()
 
 	if err != nil {
@@ -438,6 +477,9 @@ func (b board) choose_move() (move turn, err error){
 	}
 
 	moves := b.legal_moves()
+	if len(moves) == 0 {
+		return turn{}, nil
+	}
 	var util []int
 	var w_util int
 	var w_brd board
@@ -449,11 +491,11 @@ func (b board) choose_move() (move turn, err error){
 		}
 		util = append(util, w_util)
 	}
-	var move_index int 
+	var move_index int
 	closest := util[0]
 	if b.turn == x {
 		for i, val := range util {
-			if val == x{
+			if val == x {
 				return moves[i], nil
 			}
 			if closest < val {
@@ -464,7 +506,7 @@ func (b board) choose_move() (move turn, err error){
 	} else if b.turn == o {
 		closest = util[0]
 		for i, val := range util {
-			if val == o{
+			if val == o {
 				return moves[i], nil
 			}
 			if closest > val {
@@ -472,12 +514,12 @@ func (b board) choose_move() (move turn, err error){
 				move_index = i
 			}
 		}
-		
+
 	}
 	return moves[move_index], nil
 
-} 
-func (b board) utility_assign_rec() (out int, err error){
+}
+func (b board) utility_assign_rec() (out int, err error) {
 	b, err = b.update_win_state()
 
 	if err != nil {
@@ -489,11 +531,17 @@ func (b board) utility_assign_rec() (out int, err error){
 	}
 
 	moves := b.legal_moves()
+	if len(moves) == 0 {
+		return blank, nil
+	}
 	var util []int
 	var w_util int
 	var w_brd board
 	for _, move := range moves {
 		w_brd, err = b.apply_turn(move)
+		if err != nil {
+			return blank, err
+		}
 		w_util, err = w_brd.utility_assign_rec()
 		if err != nil {
 			return blank, err
@@ -505,7 +553,7 @@ func (b board) utility_assign_rec() (out int, err error){
 		closest = o
 		closest = util[0]
 		for _, val := range util {
-			if val == x{
+			if val == x {
 				return x, nil
 			}
 			if closest < val {
@@ -516,18 +564,19 @@ func (b board) utility_assign_rec() (out int, err error){
 		closest = util[0]
 		closest = x
 		for _, val := range util {
-			if val == o{
+			if val == o {
 				return o, nil
 			}
 			if closest > val {
 				closest = val
 			}
 		}
-		
+
 	}
 	return closest, nil
 
 }
+
 //
 // func (b board) utility_assign_rec_multi_master(stop_util int) (util int){
 // 	x_win_chan := make(chan struct{})
@@ -535,7 +584,7 @@ func (b board) utility_assign_rec() (out int, err error){
 // 	draw_chan := make(chan struct{})
 // 	sub_threads_count := 9
 // 	for _, v := range sub_threads_count {
-// 		
+//
 // 	}
 // 	results_recieved :=0
 // 	for {
@@ -543,12 +592,12 @@ func (b board) utility_assign_rec() (out int, err error){
 // 			case <- x_win_chan:
 // 				if stop_util == x {
 // 					return x
-// 				} 
+// 				}
 // 				results_recieved++
 // 			case <- o_win_chan:
 // 				if stop_util == o {
 // 					return x
-// 				} 
+// 				}
 // 				results_recieved++
 // 			case <- draw_chan:
 // 				results_recieved++
