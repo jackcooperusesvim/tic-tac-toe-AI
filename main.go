@@ -30,7 +30,7 @@ type vboard struct {
 
 var TestCases []board = []board{}
 
-func int_to_piece(in int) (string, error) {
+func (b board) int_to_vb_piece(in int, place_num int) (string, error) {
 	if in == x {
 		return "x", nil
 	}
@@ -38,18 +38,28 @@ func int_to_piece(in int) (string, error) {
 		return "o", nil
 	}
 	if in == blank {
-		return " ", nil
+		return fmt.Sprintf("%d", place_num), nil
 	}
 	return " ", errors.New("Invalid piece")
 }
 
-func (b board) to_vboard() (vb vboard, err error) {
-	for i := 0; i < 3; i++ {
-		for j := 0; j < 3; j++ {
-			vb.brd[i][j], err = int_to_piece(b.brd[i][j])
-			if err != nil {
-				return vb, err
+func (b board) to_vboard(nums bool) (vb vboard, err error) {
+	for i := 1; i <= 9; i++ {
+		t := int_to_turn(i)
+		p := b.get(t)
+		if p == blank {
+			if nums {
+				vb = vb.set(t, fmt.Sprintf("%v", i))
+			} else {
+				vb = vb.set(t, " ")
 			}
+		} else if p == x {
+			vb = vb.set(t, "x")
+		} else {
+			vb = vb.set(t, "o")
+		}
+		if err != nil {
+			return vb, err
 		}
 	}
 	if b.is_terminal && b.winner == blank {
@@ -112,43 +122,32 @@ func persistent_input(options ...string) int {
 	out := persistent_input(options...)
 	return out
 }
-func int_move_input(retry func(board), b board) int {
+func u_input_int(retry func(board), b board) int {
 	var in string
 	fmt.Printf("Num : ")
 	fmt.Scanln(&in)
 	intIn, err := strconv.Atoi(in)
 	if err != nil || intIn > 9 || intIn < 1 {
 		retry(b)
-		intIn = int_move_input(retry, b)
+		intIn = u_input_int(retry, b)
 	}
 
 	return intIn
 }
 
-func generate_turn_from_num(retry func(board), b board) turn {
-	num := int_move_input(retry, b)
+func u_input_turn(retry func(board), b board) turn {
+	num := u_input_int(retry, b)
 	fmt.Printf("\n")
+	return int_to_turn(num)
 
+}
+func int_to_turn(num int) turn {
 	tn := turn{}
 	num = 9 - num
 	tn.x = 2 - (num % 3)
 	tn.y = (num - (num % 3)) / 3
 
 	return tn
-
-}
-
-func generate_turn() turn {
-	out := turn{}
-	x_word_options := [3]string{"l", "m", "r"}
-	y_word_options := [3]string{"t", "m", "b"}
-
-	fmt.Println("Enter the x turn (l,m,r):")
-	out.x = persistent_input(x_word_options[:]...)
-	fmt.Println("Enter the y turn (b,m,t):")
-	out.y = persistent_input(y_word_options[:]...)
-
-	return out
 }
 
 func slc_sum(in []int) (sum int) {
@@ -239,14 +238,25 @@ func (b board) update_win_state() (board, error) {
 }
 
 func (b board) is_legal(t turn) bool {
-	if b.brd[t.y][t.x] == blank {
+	if b.get(t) == blank {
 		return true
 	}
 	return false
 }
+func (b board) get(t turn) int {
+	return b.brd[t.y][t.x]
+}
+func (b board) set(t turn, set_to int) board {
+	b.brd[t.y][t.x] = set_to
+	return b
+}
+func (vb vboard) set(t turn, set_to string) vboard {
+	vb.brd[t.y][t.x] = set_to
+	return vb
+}
 
-func (b board) print_board() {
-	vb, err := b.to_vboard()
+func (b board) print_board(nums bool) {
+	vb, err := b.to_vboard(nums)
 	if err != nil {
 		println("ERROR: ", err)
 		return
@@ -260,27 +270,40 @@ func (b board) print_board() {
 			fmt.Println("----+---+----")
 		}
 	}
-	fmt.Println("~~~~~~~~~~~~")
 	if b.winner == x {
 		fmt.Println("x has won")
 	} else if b.winner == o {
 		fmt.Println("o has won")
 	} else if b.is_terminal {
-		fmt.Println("Tie game")
+		fmt.Println("Tie Game")
 	} else {
+		fmt.Println("~~~~~~~~~~~~")
+		util, err := b.utility_assign_rec()
+		if util == x {
+			fmt.Println("o screwed up and will probably lose")
+		} else if util == o {
+			fmt.Println("x screwed up and will probably lose")
+		} else {
+			fmt.Println("perfect play thus far")
+		}
+
+		if err != nil {
+			fmt.Println("Utility Could Not Be Calculated")
+		}
+		fmt.Println("~~~~~~~~~~~~")
 		fmt.Println("no one has won")
 	}
 }
 
 func (b board) apply_turn(t turn) (board, error) {
 	if !b.is_legal(t) {
-		return b, errors.New("Non-Legal move")
+		return b, errors.New("non-legal move")
 	}
 	if b.is_terminal {
-		return b, errors.New("Game is over")
+		return b, errors.New("game is over")
 	}
 	if b.winner != blank {
-		return b, errors.New("Game already won (also, terminal state was not updated)")
+		return b, errors.New("game is already won (also, terminal state was not updated)")
 	}
 
 	b.brd[t.y][t.x] = b.turn
@@ -350,7 +373,7 @@ func test() {
 
 		}
 		fmt.Println("	CHECKING WIN STATE")
-		testBrd.print_board()
+		testBrd.print_board(false)
 		if testBrd.winner == x {
 			fmt.Println("		PASS")
 		} else {
@@ -376,13 +399,13 @@ func test() {
 func retry_screen(board board) {
 	screen.Clear()
 	screen.MoveTopLeft()
-	board.print_board()
+	board.print_board(false)
 	fmt.Printf("Not a valid input (0-9)\n")
 }
 func reset_screen(board board) {
 	screen.Clear()
 	screen.MoveTopLeft()
-	board.print_board()
+	board.print_board(false)
 }
 
 func first_or_second() (first bool) {
@@ -394,12 +417,14 @@ func first_or_second() (first bool) {
 }
 func (brd board) human_cycle() board {
 	reset_screen(brd)
-	tn := generate_turn_from_num(retry_screen, brd)
-
-	var err error
-	brd, err = brd.apply_turn(tn)
-	if err != nil {
-		fmt.Println("ERROR: ", err)
+	var err error = errors.New("")
+	for err != nil {
+		tn := u_input_turn(retry_screen, brd)
+		brd, err = brd.apply_turn(tn)
+		reset_screen(brd)
+		if err != nil {
+			fmt.Println("Not a valid input: (", err, ")")
+		}
 	}
 
 	brd, err = brd.update_win_state()
@@ -408,6 +433,7 @@ func (brd board) human_cycle() board {
 	}
 	return brd
 }
+
 func (brd board) minimax_cycle() board {
 	w_turn, err := brd.choose_move()
 	if err != nil {
@@ -435,14 +461,24 @@ func mn() {
 
 		//end game if ended
 		if brd.is_terminal {
-			brd.print_board()
+			reset_screen(brd)
+			var asdf string
+			fmt.Printf("Press Enter to Quit")
+			fmt.Scanln(&asdf)
+			screen.Clear()
+			screen.MoveTopLeft()
 			return
 		}
 		brd = brd.minimax_cycle()
 
 		//end game if ended
 		if brd.is_terminal {
-			brd.print_board()
+			reset_screen(brd)
+			var asdf string
+			fmt.Printf("Press Enter to Quit")
+			fmt.Scanln(&asdf)
+			screen.Clear()
+			screen.MoveTopLeft()
 			return
 		}
 	}
@@ -463,6 +499,7 @@ func (b board) legal_moves() (available_turns []turn) {
 			}
 		}
 	}
+
 	return available_turns
 }
 func (b board) choose_move() (move turn, err error) {
